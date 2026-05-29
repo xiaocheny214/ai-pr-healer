@@ -15,7 +15,16 @@ from mcp.types import (
 
 from .github import GitHubAuth, GitHubClient
 from .config import Config
-from .tools import clone_pr_branch, cleanup_work_dir, run_linter, run_test
+from .tools import (
+    clone_pr_branch,
+    cleanup_work_dir,
+    run_linter,
+    run_test,
+    create_issue,
+    post_review_comment,
+    post_issue_comment,
+    close_issue,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -147,6 +156,106 @@ class HealprServer:
                         "required": ["work_dir"],
                     },
                 ),
+                Tool(
+                    name="create_issue",
+                    description="Create a new issue on GitHub.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "repo": {
+                                "type": "string",
+                                "description": "Repository in 'owner/repo' format",
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Issue title",
+                            },
+                            "body": {
+                                "type": "string",
+                                "description": "Issue body (Markdown)",
+                            },
+                        },
+                        "required": ["repo", "title", "body"],
+                    },
+                ),
+                Tool(
+                    name="post_review_comment",
+                    description="Post a review comment on a specific line of a PR.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "repo": {
+                                "type": "string",
+                                "description": "Repository in 'owner/repo' format",
+                            },
+                            "pr_number": {
+                                "type": "integer",
+                                "description": "Pull request number",
+                            },
+                            "file": {
+                                "type": "string",
+                                "description": "File path relative to repo root",
+                            },
+                            "line": {
+                                "type": "integer",
+                                "description": "Line number to comment on",
+                            },
+                            "body": {
+                                "type": "string",
+                                "description": "Comment body (Markdown)",
+                            },
+                            "suggestion": {
+                                "type": "string",
+                                "description": "Optional suggested code change",
+                            },
+                        },
+                        "required": ["repo", "pr_number", "file", "line", "body"],
+                    },
+                ),
+                Tool(
+                    name="post_issue_comment",
+                    description="Post a comment on an issue or PR discussion.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "repo": {
+                                "type": "string",
+                                "description": "Repository in 'owner/repo' format",
+                            },
+                            "issue_number": {
+                                "type": "integer",
+                                "description": "Issue or PR number",
+                            },
+                            "body": {
+                                "type": "string",
+                                "description": "Comment body (Markdown)",
+                            },
+                        },
+                        "required": ["repo", "issue_number", "body"],
+                    },
+                ),
+                Tool(
+                    name="close_issue",
+                    description="Close an issue with optional comment.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "repo": {
+                                "type": "string",
+                                "description": "Repository in 'owner/repo' format",
+                            },
+                            "issue_number": {
+                                "type": "integer",
+                                "description": "Issue number to close",
+                            },
+                            "comment": {
+                                "type": "string",
+                                "description": "Optional closing comment",
+                            },
+                        },
+                        "required": ["repo", "issue_number"],
+                    },
+                ),
             ]
 
         @self.server.call_tool()
@@ -186,6 +295,41 @@ class HealprServer:
                     result = run_test(
                         arguments["work_dir"],
                         arguments.get("test_command"),
+                    )
+                    return [TextContent(type="text", text=str(result))]
+
+                elif name == "create_issue":
+                    result = create_issue(
+                        arguments["repo"],
+                        arguments["title"],
+                        arguments["body"],
+                    )
+                    return [TextContent(type="text", text=str(result))]
+
+                elif name == "post_review_comment":
+                    result = post_review_comment(
+                        arguments["repo"],
+                        arguments["pr_number"],
+                        arguments["file"],
+                        arguments["line"],
+                        arguments["body"],
+                        arguments.get("suggestion"),
+                    )
+                    return [TextContent(type="text", text=str(result))]
+
+                elif name == "post_issue_comment":
+                    result = post_issue_comment(
+                        arguments["repo"],
+                        arguments["issue_number"],
+                        arguments["body"],
+                    )
+                    return [TextContent(type="text", text=str(result))]
+
+                elif name == "close_issue":
+                    result = close_issue(
+                        arguments["repo"],
+                        arguments["issue_number"],
+                        arguments.get("comment"),
                     )
                     return [TextContent(type="text", text=str(result))]
 
