@@ -1,10 +1,21 @@
 """Git operations tools for MCP server."""
 
 import os
+import stat
 import subprocess
 import shutil
 from pathlib import Path
 from typing import Any
+
+
+def _remove_readonly(func, path, excinfo):
+    """Error handler for shutil.rmtree on Windows.
+
+    Git creates read-only files in .git/objects/ that prevent deletion.
+    This handler makes them writable and retries.
+    """
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
 
 
 def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> dict[str, Any]:
@@ -27,13 +38,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
 
     # Clean up existing directory if it exists
     if pr_dir.exists():
-        try:
-            shutil.rmtree(pr_dir)
-        except PermissionError:
-            # On Windows, sometimes we need to handle this
-            import time
-            time.sleep(1)
-            shutil.rmtree(pr_dir, ignore_errors=True)
+        shutil.rmtree(pr_dir, onerror=_remove_readonly)
 
     # Ensure parent directory exists
     pr_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -41,7 +46,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
     # Clone to a temporary directory first, then move
     temp_dir = pr_dir.parent / f"temp-{repo_name}-pr-{pr_number}"
     if temp_dir.exists():
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        shutil.rmtree(temp_dir, onerror=_remove_readonly)
 
     try:
         # Clone the repository with depth 1 to temp directory
@@ -76,7 +81,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
 
         # Move to final directory
         if pr_dir.exists():
-            shutil.rmtree(pr_dir)
+            shutil.rmtree(pr_dir, onerror=_remove_readonly)
         shutil.move(str(temp_dir), str(pr_dir))
 
         return {
@@ -88,7 +93,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
     except subprocess.TimeoutExpired:
         # Clean up temp directory on failure
         if temp_dir.exists():
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            shutil.rmtree(temp_dir, onerror=_remove_readonly)
         return {
             "success": False,
             "error": "Git operation timed out",
@@ -97,7 +102,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
     except subprocess.CalledProcessError as e:
         # Clean up temp directory on failure
         if temp_dir.exists():
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            shutil.rmtree(temp_dir, onerror=_remove_readonly)
         return {
             "success": False,
             "error": f"Git command failed: {e.stderr}",
@@ -117,7 +122,7 @@ def cleanup_work_dir(work_dir: str) -> dict[str, Any]:
     try:
         work_path = Path(work_dir)
         if work_path.exists():
-            shutil.rmtree(work_path)
+            shutil.rmtree(work_path, onerror=_remove_readonly)
             return {"success": True, "message": f"Cleaned up {work_dir}"}
         else:
             return {"success": True, "message": f"Directory {work_dir} does not exist"}
