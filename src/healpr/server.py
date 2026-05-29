@@ -15,7 +15,7 @@ from mcp.types import (
 
 from .github import GitHubAuth, GitHubClient
 from .config import Config
-from .tools import clone_pr_branch, cleanup_work_dir
+from .tools import clone_pr_branch, cleanup_work_dir, run_linter
 
 # Configure logging
 logging.basicConfig(
@@ -111,6 +111,24 @@ class HealprServer:
                         "required": ["work_dir"],
                     },
                 ),
+                Tool(
+                    name="run_linter",
+                    description="Run linter on a project or specific file to detect code issues.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "work_dir": {
+                                "type": "string",
+                                "description": "Path to the project directory",
+                            },
+                            "file_path": {
+                                "type": "string",
+                                "description": "Optional specific file to lint",
+                            },
+                        },
+                        "required": ["work_dir"],
+                    },
+                ),
             ]
 
         @self.server.call_tool()
@@ -137,6 +155,13 @@ class HealprServer:
 
                 elif name == "cleanup_work_dir":
                     result = cleanup_work_dir(arguments["work_dir"])
+                    return [TextContent(type="text", text=str(result))]
+
+                elif name == "run_linter":
+                    result = run_linter(
+                        arguments["work_dir"],
+                        arguments.get("file_path"),
+                    )
                     return [TextContent(type="text", text=str(result))]
 
                 else:
