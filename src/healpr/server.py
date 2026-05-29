@@ -15,7 +15,7 @@ from mcp.types import (
 
 from .github import GitHubAuth, GitHubClient
 from .config import Config
-from .tools import clone_pr_branch, cleanup_work_dir, run_linter
+from .tools import clone_pr_branch, cleanup_work_dir, run_linter, run_test
 
 # Configure logging
 logging.basicConfig(
@@ -129,6 +129,24 @@ class HealprServer:
                         "required": ["work_dir"],
                     },
                 ),
+                Tool(
+                    name="run_test",
+                    description="Run tests in a project to verify functionality.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "work_dir": {
+                                "type": "string",
+                                "description": "Path to the project directory",
+                            },
+                            "test_command": {
+                                "type": "string",
+                                "description": "Optional custom test command to run",
+                            },
+                        },
+                        "required": ["work_dir"],
+                    },
+                ),
             ]
 
         @self.server.call_tool()
@@ -161,6 +179,13 @@ class HealprServer:
                     result = run_linter(
                         arguments["work_dir"],
                         arguments.get("file_path"),
+                    )
+                    return [TextContent(type="text", text=str(result))]
+
+                elif name == "run_test":
+                    result = run_test(
+                        arguments["work_dir"],
+                        arguments.get("test_command"),
                     )
                     return [TextContent(type="text", text=str(result))]
 
