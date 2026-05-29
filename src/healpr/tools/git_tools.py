@@ -49,6 +49,11 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
         shutil.rmtree(temp_dir, onerror=_remove_readonly)
 
     try:
+        # Set environment to prevent git from waiting for authentication input
+        git_env = os.environ.copy()
+        git_env["GIT_TERMINAL_PROMPT"] = "0"
+        git_env["GIT_ASKPASS"] = "echo"
+
         # Clone the repository with depth 1 to temp directory
         clone_url = f"https://github.com/{repo}.git"
         subprocess.run(
@@ -57,6 +62,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
             capture_output=True,
             text=True,
             timeout=60,
+            env=git_env,
         )
 
         # Fetch the PR branch
@@ -67,6 +73,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
             text=True,
             cwd=str(temp_dir),
             timeout=30,
+            env=git_env,
         )
 
         # Checkout the PR branch
@@ -77,6 +84,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
             text=True,
             cwd=str(temp_dir),
             timeout=10,
+            env=git_env,
         )
 
         # Move to final directory

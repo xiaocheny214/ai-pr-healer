@@ -1,8 +1,10 @@
 """MCP Server for healpr - AI PR Review Assistant."""
 
 import sys
+import asyncio
 import logging
 from typing import Any
+from functools import partial
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -261,75 +263,83 @@ class HealprServer:
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             """Handle tool calls."""
+            loop = asyncio.get_event_loop()
             try:
                 if name == "get_pr_info":
-                    result = self.github_client.get_pr_info(
-                        arguments["repo"], arguments["pr_number"]
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(self.github_client.get_pr_info, arguments["repo"], arguments["pr_number"])
                     )
                     return [TextContent(type="text", text=str(result))]
 
                 elif name == "get_pr_diff":
-                    result = self.github_client.get_pr_diff(
-                        arguments["repo"], arguments["pr_number"]
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(self.github_client.get_pr_diff, arguments["repo"], arguments["pr_number"])
                     )
                     return [TextContent(type="text", text=result)]
 
                 elif name == "clone_pr_branch":
-                    result = clone_pr_branch(
-                        arguments["repo"], arguments["pr_number"]
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(clone_pr_branch, arguments["repo"], arguments["pr_number"])
                     )
                     return [TextContent(type="text", text=str(result))]
 
                 elif name == "cleanup_work_dir":
-                    result = cleanup_work_dir(arguments["work_dir"])
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(cleanup_work_dir, arguments["work_dir"])
+                    )
                     return [TextContent(type="text", text=str(result))]
 
                 elif name == "run_linter":
-                    result = run_linter(
-                        arguments["work_dir"],
-                        arguments.get("file_path"),
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(run_linter, arguments["work_dir"], arguments.get("file_path"))
                     )
                     return [TextContent(type="text", text=str(result))]
 
                 elif name == "run_test":
-                    result = run_test(
-                        arguments["work_dir"],
-                        arguments.get("test_command"),
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(run_test, arguments["work_dir"], arguments.get("test_command"))
                     )
                     return [TextContent(type="text", text=str(result))]
 
                 elif name == "create_issue":
-                    result = create_issue(
-                        arguments["repo"],
-                        arguments["title"],
-                        arguments["body"],
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(create_issue, arguments["repo"], arguments["title"], arguments["body"])
                     )
                     return [TextContent(type="text", text=str(result))]
 
                 elif name == "post_review_comment":
-                    result = post_review_comment(
-                        arguments["repo"],
-                        arguments["pr_number"],
-                        arguments["file"],
-                        arguments["line"],
-                        arguments["body"],
-                        arguments.get("suggestion"),
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(
+                            post_review_comment,
+                            arguments["repo"],
+                            arguments["pr_number"],
+                            arguments["file"],
+                            arguments["line"],
+                            arguments["body"],
+                            arguments.get("suggestion"),
+                        )
                     )
                     return [TextContent(type="text", text=str(result))]
 
                 elif name == "post_issue_comment":
-                    result = post_issue_comment(
-                        arguments["repo"],
-                        arguments["issue_number"],
-                        arguments["body"],
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(post_issue_comment, arguments["repo"], arguments["issue_number"], arguments["body"])
                     )
                     return [TextContent(type="text", text=str(result))]
 
                 elif name == "close_issue":
-                    result = close_issue(
-                        arguments["repo"],
-                        arguments["issue_number"],
-                        arguments.get("comment"),
+                    result = await loop.run_in_executor(
+                        None,
+                        partial(close_issue, arguments["repo"], arguments["issue_number"], arguments.get("comment"))
                     )
                     return [TextContent(type="text", text=str(result))]
 
