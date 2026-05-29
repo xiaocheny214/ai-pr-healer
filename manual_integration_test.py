@@ -36,7 +36,7 @@ DEFAULT_REPO = "xiaocheny214/ai-pr-healer"
 DEFAULT_PR = 1
 
 
-def test_mcp_tools(dry_run=False, repo=DEFAULT_REPO, pr_number=DEFAULT_PR):
+def test_mcp_tools(dry_run=False, repo=DEFAULT_REPO, pr_number=DEFAULT_PR, line=1):
     """Test all MCP tools."""
     print("=" * 60)
     print("Testing healpr MCP Server Tools")
@@ -128,7 +128,7 @@ def test_mcp_tools(dry_run=False, repo=DEFAULT_REPO, pr_number=DEFAULT_PR):
             print("\n6. Testing post_review_comment:")
             try:
                 result = post_review_comment(
-                    repo, pr_number, "README.md", 1,
+                    repo, pr_number, "README.md", line,
                     "Test review comment from healpr integration test.",
                     "This is an automated test comment."
                 )
@@ -238,7 +238,8 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="Skip GitHub write operations")
     parser.add_argument("--repo", default=DEFAULT_REPO, help="Target repo (owner/repo)")
     parser.add_argument("--pr", type=int, default=DEFAULT_PR, help="Target PR number")
+    parser.add_argument("--line", type=int, default=1, help="Line number for review comment")
     args = parser.parse_args()
 
-    success = test_mcp_tools(dry_run=args.dry_run, repo=args.repo, pr_number=args.pr)
+    success = test_mcp_tools(dry_run=args.dry_run, repo=args.repo, pr_number=args.pr, line=args.line)
     sys.exit(0 if success else 1)
