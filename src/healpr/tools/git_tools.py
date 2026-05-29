@@ -27,15 +27,27 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
 
     # Clean up existing directory if it exists
     if pr_dir.exists():
-        shutil.rmtree(pr_dir)
+        try:
+            shutil.rmtree(pr_dir)
+        except PermissionError:
+            # On Windows, sometimes we need to handle this
+            import time
+            time.sleep(1)
+            shutil.rmtree(pr_dir, ignore_errors=True)
 
-    pr_dir.mkdir(parents=True, exist_ok=True)
+    # Ensure parent directory exists
+    pr_dir.parent.mkdir(parents=True, exist_ok=True)
+
+    # Clone to a temporary directory first, then move
+    temp_dir = pr_dir.parent / f"temp-{repo_name}-pr-{pr_number}"
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
     try:
-        # Clone the repository with depth 1
+        # Clone the repository with depth 1 to temp directory
         clone_url = f"https://github.com/{repo}.git"
         subprocess.run(
-            ["git", "clone", "--depth", "1", clone_url, str(pr_dir)],
+            ["git", "clone", "--depth", "1", clone_url, str(temp_dir)],
             check=True,
             capture_output=True,
             text=True,
@@ -48,7 +60,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
             check=True,
             capture_output=True,
             text=True,
-            cwd=str(pr_dir),
+            cwd=str(temp_dir),
             timeout=30,
         )
 
@@ -58,9 +70,14 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
             check=True,
             capture_output=True,
             text=True,
-            cwd=str(pr_dir),
+            cwd=str(temp_dir),
             timeout=10,
         )
+
+        # Move to final directory
+        if pr_dir.exists():
+            shutil.rmtree(pr_dir)
+        shutil.move(str(temp_dir), str(pr_dir))
 
         return {
             "success": True,
@@ -69,12 +86,18 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
         }
 
     except subprocess.TimeoutExpired:
+        # Clean up temp directory on failure
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
         return {
             "success": False,
             "error": "Git operation timed out",
             "work_dir": str(pr_dir),
         }
     except subprocess.CalledProcessError as e:
+        # Clean up temp directory on failure
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
         return {
             "success": False,
             "error": f"Git command failed: {e.stderr}",
