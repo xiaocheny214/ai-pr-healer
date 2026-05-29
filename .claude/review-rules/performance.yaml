@@ -1,0 +1,11 @@
+name: 性能审查
+rules:
+  - id: PERF-001
+    check: "禁止在循环中执行数据库查询（N+1 问题）"
+    severity: high
+  - id: PERF-002
+    check: "大文件读取必须使用流式处理"
+    severity: medium
+  - id: PERF-003
+    check: "缓存 key 必须有 TTL 设置"
+    severity: low
