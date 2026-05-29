@@ -1,5 +1,7 @@
 # healpr — AI PR 代码审查工具
 
+> MCP-powered AI PR reviewer with autonomous bug reproduction, issue creation, and self-healing. [中文文档 ↓](#安装指南新手向)
+
 healpr 是一个 MCP Server，作为 Claude Code 插件运行，提供自动化 PR 代码审查能力。它能自动拉取 PR 代码、运行 linter 和测试、在 GitHub 上发布行级审查评论、为确认的 bug 创建 issue。
 
 ## 安装指南（新手向）
@@ -57,8 +59,8 @@ healpr 需要一个 GitHub Token 来访问 GitHub API（读取 PR、发布评论
 **1. 克隆仓库**
 
 ```bash
-git clone https://github.com/xiaocheny214/healpr.git
-cd healpr
+git clone https://github.com/xiaocheny214/ai-pr-healer.git
+cd ai-pr-healer
 ```
 
 **2. 安装 Python 依赖**
@@ -147,7 +149,7 @@ cp .claude/review-rules/*.yaml ~/.claude/review-rules/
       "command": "healpr",
       "env": {
         "HEALPR_GITHUB_TOKEN": "你的GitHub Token",
-        "HEALPR_WORK_DIR": "D:/healpr-workspace"
+        "HEALPR_WORK_DIR": "/path/to/healpr-workspace"
       }
     }
   }
@@ -219,12 +221,6 @@ cp .claude/review-rules/*.yaml ~/.claude/review-rules/
 ```
 
 在弹出的面板中，应该能看到 `healpr` 服务器及其 10 个工具。
-
-你也可以运行内置诊断：
-
-```
-/doctor
-```
 
 ---
 
