@@ -15,6 +15,7 @@ from mcp.types import (
 
 from .github import GitHubAuth, GitHubClient
 from .config import Config
+from .tools import clone_pr_branch, cleanup_work_dir
 
 # Configure logging
 logging.basicConfig(
@@ -78,6 +79,38 @@ class HealprServer:
                         "required": ["repo", "pr_number"],
                     },
                 ),
+                Tool(
+                    name="clone_pr_branch",
+                    description="Clone a PR branch to local workspace for analysis.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "repo": {
+                                "type": "string",
+                                "description": "Repository in 'owner/repo' format",
+                            },
+                            "pr_number": {
+                                "type": "integer",
+                                "description": "Pull request number",
+                            },
+                        },
+                        "required": ["repo", "pr_number"],
+                    },
+                ),
+                Tool(
+                    name="cleanup_work_dir",
+                    description="Clean up a work directory after analysis.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "work_dir": {
+                                "type": "string",
+                                "description": "Path to the work directory to clean up",
+                            },
+                        },
+                        "required": ["work_dir"],
+                    },
+                ),
             ]
 
         @self.server.call_tool()
@@ -95,6 +128,16 @@ class HealprServer:
                         arguments["repo"], arguments["pr_number"]
                     )
                     return [TextContent(type="text", text=result)]
+
+                elif name == "clone_pr_branch":
+                    result = clone_pr_branch(
+                        arguments["repo"], arguments["pr_number"]
+                    )
+                    return [TextContent(type="text", text=str(result))]
+
+                elif name == "cleanup_work_dir":
+                    result = cleanup_work_dir(arguments["work_dir"])
+                    return [TextContent(type="text", text=str(result))]
 
                 else:
                     raise ValueError(f"Unknown tool: {name}")
