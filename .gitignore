@@ -50,3 +50,16 @@ htmlcov/
 
 # Work directory
 /tmp/
+.test-workspace/
+
+# MCP config (contains tokens)
+.mcp.json
+
+# Claude Code local settings (contains tokens and permissions)
+.claude/settings.local.json
+
+# Cache
+.npm-cache/
+
+# Test reports
+MCP_TEST_REPORT.md
