@@ -1,5 +1,6 @@
 """MCP Server for healpr - AI PR Review Assistant."""
 
+import os
 import sys
 import asyncio
 import logging
@@ -45,7 +46,46 @@ class HealprServer:
         self.auth = GitHubAuth.from_env()
         self.github_client = GitHubClient(auth=self.auth)
         self.server = Server("healpr")
+        self.target_repo = None  # 目标仓库，首次调用 get_pr_info 时记录
         self._setup_handlers()
+
+    def _is_target_repo(self, repo: str) -> bool:
+        """Check if repo matches the target repository."""
+        if self.target_repo is None:
+            # First call: record and allow
+            self.target_repo = repo
+            return True
+        return repo == self.target_repo
+
+    def _validate_tool_args(self, name: str, arguments: dict) -> None:
+        """Validate tool arguments before execution.
+
+        Raises ValueError if validation fails.
+        """
+        if name in ("clone_pr_branch", "cleanup_work_dir"):
+            work_dir = arguments.get("work_dir", "")
+            if not work_dir:
+                # clone_pr_branch doesn't require work_dir (has default)
+                if name == "cleanup_work_dir":
+                    raise ValueError("work_dir 参数不能为空")
+                return
+            # Root directory protection (check before path bounds)
+            if work_dir in ("/", "C:\\", "C:/"):
+                raise ValueError(f"禁止清理根目录: {work_dir}")
+            # Path traversal check
+            if ".." in work_dir:
+                raise ValueError(f"路径禁止包含 ../: {work_dir}")
+            # Path bounds check
+            allowed = str(self.config.work_dir)
+            real_work = os.path.realpath(work_dir)
+            real_allowed = os.path.realpath(allowed)
+            if not real_work.startswith(real_allowed):
+                raise ValueError(f"路径越界: {work_dir} 不在允许范围 {allowed} 内")
+
+        if name in ("get_pr_info", "get_pr_diff", "create_issue", "post_review_comment", "post_issue_comment", "close_issue"):
+            repo = arguments.get("repo", "")
+            if repo and not self._is_target_repo(repo):
+                raise ValueError(f"非目标仓库: {repo}，当前审查目标: {self.target_repo}")
 
     def _setup_handlers(self):
         """Set up MCP request handlers."""
@@ -265,6 +305,9 @@ class HealprServer:
             """Handle tool calls."""
             loop = asyncio.get_event_loop()
             try:
+                # Validate arguments before execution
+                self._validate_tool_args(name, arguments)
+
                 if name == "get_pr_info":
                     result = await loop.run_in_executor(
                         None,
