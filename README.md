@@ -101,7 +101,7 @@ export HEALPR_GITHUB_TOKEN="你的GitHub Token"
 然后在 healpr 项目目录下启动 Claude Code：
 
 ```bash
-cd healpr
+cd ai-pr-healer
 claude
 ```
 
@@ -162,7 +162,7 @@ cp .claude/review-rules/*.yaml ~/.claude/review-rules/
 |------|------|
 | `command` | 使用 `healpr` 命令（`pip install -e .` 后自动可用），无需指定 `cwd` |
 | `HEALPR_GITHUB_TOKEN` | 你在第一步创建的 GitHub Token |
-| `HEALPR_WORK_DIR` | 工作目录，用于存放克隆的 PR 代码，建议使用独立目录如 `D:/healpr-workspace` |
+| `HEALPR_WORK_DIR` | 工作目录，用于存放克隆的 PR 代码，建议使用独立目录如 `/path/to/healpr-workspace` |
 
 **3. 在 `~/.claude/settings.json` 中添加安全钩子（可选）**
 
