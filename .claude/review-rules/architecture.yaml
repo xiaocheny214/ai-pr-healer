@@ -1,0 +1,11 @@
+name: 架构审查
+rules:
+  - id: ARCH-001
+    check: "业务逻辑禁止直接访问数据库，必须通过 Repository 层"
+    severity: high
+  - id: ARCH-002
+    check: "模块间禁止循环依赖"
+    severity: medium
+  - id: ARCH-003
+    check: "新增公共方法必须有类型标注"
+    severity: low
