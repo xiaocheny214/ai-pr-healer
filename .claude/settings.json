@@ -5,7 +5,7 @@
       "args": ["-m", "healpr.server"],
       "cwd": "D:/ai-pr-healer",
       "env": {
-        "HEALPR_GITHUB_TOKEN": "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",
+        "HEALPR_GITHUB_TOKEN": "${HEALPR_GITHUB_TOKEN}",
         "HEALPR_WORK_DIR": "D:/ai-pr-healer/.test-workspace"
       }
     }
