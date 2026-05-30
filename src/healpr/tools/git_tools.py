@@ -53,6 +53,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
         git_env = os.environ.copy()
         git_env["GIT_TERMINAL_PROMPT"] = "0"
         git_env["GIT_ASKPASS"] = "echo"
+        git_env["GCM_INTERACTIVE"] = "never"
 
         # Clone the repository with depth 1 to temp directory
         clone_url = f"https://github.com/{repo}.git"
@@ -63,6 +64,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
             text=True,
             timeout=60,
             env=git_env,
+            stdin=subprocess.DEVNULL,
         )
 
         # Fetch the PR branch
@@ -74,6 +76,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
             cwd=str(temp_dir),
             timeout=30,
             env=git_env,
+            stdin=subprocess.DEVNULL,
         )
 
         # Checkout the PR branch
@@ -85,6 +88,7 @@ def clone_pr_branch(repo: str, pr_number: int, work_dir: str | None = None) -> d
             cwd=str(temp_dir),
             timeout=10,
             env=git_env,
+            stdin=subprocess.DEVNULL,
         )
 
         # Move to final directory
