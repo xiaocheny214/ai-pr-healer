@@ -8,7 +8,7 @@ description: PR 代码审查工具（使用 healpr MCP）。支持默认模式�
 ## 使用方式
 
 - `/pr-review` — 默认模式，Claude 自主判断审查重点
-- `/pr-review --strict` — 严格模式，加载 `.claude/review-rules/*.yaml` 逐规则检查
+- `/pr-review --strict` — 严格模式，加载 `pr-review/*.yaml` 逐规则检查
 
 ## 审查流程
 
