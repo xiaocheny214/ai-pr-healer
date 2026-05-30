@@ -107,69 +107,66 @@ claude
 
 项目目录下的 `.claude/` 文件夹包含：
 - `settings.json` — MCP 服务器配置 + 安全钩子
-- `skills/review.md` — `/review` 审查命令
+- `skills/pr-review/` — `/pr-review` 命令定义 + 审查规则 YAML
 - `hooks/` — 安全防护脚本
-- `review-rules/` — 严格模式审查规则
 
 这些文件会自动被 Claude Code 加载，无需额外操作。
 
 #### 方式 B：全局配置（所有项目通用）
 
-如果你希望在任何项目目录下都能使用 healpr，需要将配置写入两个全局文件。
+如果你希望在任何项目目录下都能使用 healpr，需要完成以下 4 步。
 
-**1. 复制钩子脚本到全局目录**
+**1. 创建全局目录结构并复制文件**
 
 ```bash
-# 创建全局目录
+# 创建目录
 mkdir -p ~/.claude/hooks
-mkdir -p ~/.claude/skills
-mkdir -p ~/.claude/review-rules
+mkdir -p ~/.claude/skills/pr-review
 
-# 复制文件（Windows 用户请将 cp 改为 copy）
+# 复制文件（Windows 用户将 cp 改为 copy）
 cp .claude/hooks/check_bash_safety.py ~/.claude/hooks/
 cp .claude/hooks/check_file_safety.py ~/.claude/hooks/
-cp .claude/skills/review.md ~/.claude/skills/
-cp .claude/review-rules/*.yaml ~/.claude/review-rules/
+cp .claude/skills/pr-review/SKILL.md ~/.claude/skills/pr-review/SKILL.md
+cp .claude/skills/pr-review/*.yaml ~/.claude/skills/pr-review/
 ```
+
+完成后，全局目录结构如下：
+
+```
+~/.claude/
+├── hooks/
+│   ├── check_bash_safety.py          # Bash 命令安全检查（阻止 git push 等）
+│   └── check_file_safety.py          # 文件操作安全检查（阻止修改项目源码）
+├── skills/
+│   └── pr-review/
+│       ├── SKILL.md                  # /pr-review 命令定义（审查流程 7 步）
+│       ├── security.yaml             # 安全审查规则
+│       ├── architecture.yaml         # 架构审查规则
+│       └── performance.yaml          # 性能审查规则
+└── settings.json                     # 环境变量 + hooks 配置
+```
+
+> **关键**：skill 文件必须命名为 `SKILL.md`，放在以 skill 名称命名的目录下（`skills/pr-review/SKILL.md`）。审查规则 YAML 也放在同一目录内，严格模式会从当前 skill 目录读取 `*.yaml`。
 
 > **Windows 用户注意**：`~` 代表用户主目录，通常是 `C:\Users\你的用户名`。在 PowerShell 中可以用 `$HOME` 代替 `~`。
 
-**2. 在 `~/.claude.json` 中添加 MCP Server**
+**2. 在 `~/.claude/settings.json` 中添加 MCP Server 和安全钩子**
 
-打开 `~/.claude.json`，在根级 `mcpServers` 字段中添加 `healpr`：
+在 `~/.claude/settings.json` 中添加 `mcpServers` 和 `hooks` 配置：
 
 ```json
 {
   "mcpServers": {
-    "github": {
-      "...": "已有的 github 配置保持不变"
-    },
     "healpr": {
-      "type": "stdio",
-      "command": "healpr",
+      "command": "python",
+      "args": ["-m", "healpr.server"],
+      "cwd": "/path/to/ai-pr-healer",
       "env": {
         "HEALPR_GITHUB_TOKEN": "你的GitHub Token",
         "HEALPR_WORK_DIR": "/path/to/healpr-workspace"
       }
     }
-  }
-}
-```
-
-> **重要**：MCP Server 必须配置在 `~/.claude.json` 的根级 `mcpServers` 中，而不是 `~/.claude/settings.json`。Claude Code 只从 `~/.claude.json` 读取用户级 MCP 配置。
-
-| 字段 | 说明 |
-|------|------|
-| `command` | 使用 `healpr` 命令（`pip install -e .` 后自动可用），无需指定 `cwd` |
-| `HEALPR_GITHUB_TOKEN` | 你在第一步创建的 GitHub Token |
-| `HEALPR_WORK_DIR` | 工作目录，用于存放克隆的 PR 代码，建议使用独立目录如 `/path/to/healpr-workspace` |
-
-**3. 在 `~/.claude/settings.json` 中添加安全钩子（可选）**
-
-如果你需要安全防护钩子，在 `~/.claude/settings.json` 中添加 `hooks` 配置：
-
-```json
-{
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -204,9 +201,16 @@ cp .claude/review-rules/*.yaml ~/.claude/review-rules/
 }
 ```
 
+| 字段 | 说明 |
+|------|------|
+| `command` | `python -m healpr.server`，以模块方式启动 MCP server |
+| `cwd` | healpr 项目根目录的**绝对路径**（如 `D:/ai-pr-healer`） |
+| `HEALPR_GITHUB_TOKEN` | 你在第一步创建的 GitHub Token |
+| `HEALPR_WORK_DIR` | 工作目录，用于存放克隆的 PR 代码，建议使用独立目录 |
+
 > **注意**：`PreToolUse` 的首字母必须大写！小写的 `preToolUse` 会导致钩子不生效。
 
-**4. 重启 Claude Code**
+**3. 重启 Claude Code**
 
 配置修改后需要重启 Claude Code 才能生效。
 
@@ -224,6 +228,56 @@ cp .claude/review-rules/*.yaml ~/.claude/review-rules/
 
 ---
 
+## 设计思路
+
+### 单仓库锁定机制
+
+healpr 的核心安全设计是**单仓库单会话**：在一个 Claude Code 会话中，一旦开始审查某个仓库的 PR，所有 GitHub 操作（获取 PR 信息、发布评论、创建 issue）都会被锁定到该仓库。如果尝试操作其他仓库，MCP server 会直接拒绝并返回错误。
+
+```
+# 会话中首次审查 facebook/react #123 → 锁定到 facebook/react
+/pr-review facebook/react 123     ✅ 正常执行
+
+# 同一会话中尝试审查另一个仓库 → 被拒绝
+/pr-review google/gson 456        ❌ "非目标仓库: google/gson，当前审查目标: facebook/react"
+```
+
+**为什么这样设计？**
+
+代码审查是一个高风险操作——它涉及读取代码、在 GitHub 上发布评论、创建 issue。如果允许同一个会话随意切换仓库，会带来两个问题：
+
+1. **误操作风险**：审查 A 仓库时产生的评论或 issue 可能误发到 B 仓库
+2. **上下文污染**：Claude 的上下文中混入了多个仓库的代码和 diff，可能导致审查结论张冠李戴
+
+单仓库锁定确保了审查会话的**原子性**——一次只专注于一个仓库，所有操作都在该仓库的上下文中完成。
+
+**切换审查仓库**：关闭当前会话，开一个新的 Claude Code session 即可。
+
+---
+
+### 三层安全防护架构
+
+```
+┌─────────────────────────────────────────────────┐
+│  Skill 层 (.claude/skills/pr-review/)            │
+│  /pr-review 命令 → 定义审查流程（7 步）           │
+├─────────────────────────────────────────────────┤
+│  Hooks 层 (.claude/settings.json → hooks)        │
+│  PreToolUse 拦截 → 阻止危险命令和越界文件操作      │
+├─────────────────────────────────────────────────┤
+│  MCP Server 层 (src/healpr/server.py)            │
+│  参数校验 → 路径白名单 + 仓库白名单               │
+└─────────────────────────────────────────────────┘
+```
+
+| 层级 | 防护内容 |
+|------|---------|
+| **Skill** | 定义审查流程，约束 Claude 按步骤执行，禁止修改项目源码 |
+| **Hooks** | 阻止 `git push`、`git commit --amend`、`rm -rf /`；阻止编辑 `src/`、`CLAUDE.md`、`.claude/` 等关键文件 |
+| **MCP Server** | `clone_pr_branch`/`cleanup_work_dir` 限制在 `HEALPR_WORK_DIR` 内；GitHub 操作锁定到首次调用的目标仓库 |
+
+---
+
 ## 使用方法
 
 ### 基本用法
@@ -231,14 +285,14 @@ cp .claude/review-rules/*.yaml ~/.claude/review-rules/
 在 Claude Code 中输入：
 
 ```
-/review owner/repo 123
+/pr-review owner/repo 123
 ```
 
 其中 `owner/repo` 是 GitHub 仓库名（如 `facebook/react`），`123` 是 PR 编号。
 
 ### 审查流程
 
-`/review` 会自动执行以下 7 个步骤：
+`/pr-review` 会自动执行以下 7 个步骤：
 
 1. **获取 PR 信息** — 读取 PR 标题、描述、变更文件列表和 diff
 2. **克隆 PR 分支** — 将 PR 代码拉取到本地工作目录
@@ -251,10 +305,10 @@ cp .claude/review-rules/*.yaml ~/.claude/review-rules/
 ### 严格模式
 
 ```
-/review --strict
+/pr-review --strict
 ```
 
-严格模式会加载 `.claude/review-rules/*.yaml` 中的规则，逐条检查代码是否违规。
+严格模式会加载 `.claude/skills/pr-review/*.yaml` 中的规则，逐条检查代码是否违规。
 
 默认包含 3 类规则：
 - **安全审查** (security.yaml) — SQL 注入、eval/exec、鉴权中间件
@@ -311,24 +365,17 @@ A: 确保 `HEALPR_WORK_DIR` 环境变量已正确设置，且 Claude Code 已重
 A: 检查以下几点：
 1. `pip install -e .` 是否成功执行（全局模式下必须安装）
 2. 项目级：`.mcp.json` 文件是否存在且格式正确
-3. 全局级：`~/.claude.json` 的根级 `mcpServers` 中是否添加了 `healpr`
+3. 全局级：`~/.claude/settings.json` 的 `mcpServers` 中是否添加了 `healpr`
 4. `HEALPR_GITHUB_TOKEN` 环境变量是否已设置
 5. 尝试重启 Claude Code
 
 ### Q: 审查规则怎么自定义？
 
-A: 编辑 `.claude/review-rules/` 目录下的 YAML 文件，按照已有格式添加新规则即可。每条规则包含 `id`、`check`（检查内容）和 `severity`（严重程度：critical/high/medium/low）。
+A: 编辑 `.claude/skills/pr-review/` 目录下的 YAML 文件，按照已有格式添加新规则即可。每条规则包含 `id`、`check`（检查内容）和 `severity`（严重程度：critical/high/medium/low）。
 
-### Q: `~/.claude.json` 和 `~/.claude/settings.json` 有什么区别？
+### Q: 为什么同一会话中不能审查不同仓库的 PR？
 
-A: 两者用途不同：
-
-| 文件 | 用途 |
-|------|------|
-| `~/.claude.json` | 用户级 MCP Server 配置、项目元数据、使用统计 |
-| `~/.claude/settings.json` | 环境变量、权限配置、Hooks 钩子、插件开关 |
-
-全局 MCP Server 必须写在 `~/.claude.json` 的根级 `mcpServers` 中，写在 `settings.json` 中不会被识别。
+A: 这是有意设计的安全机制。MCP server 会在首次 GitHub 操作时锁定目标仓库，后续所有操作必须针对同一仓库。这样可以防止审查 A 仓库时误将评论发到 B 仓库，也避免上下文中混入多个仓库的代码导致审查结论混乱。如果需要审查其他仓库的 PR，关闭当前会话开一个新的即可。
 
 ### Q: Windows 用户有什么注意事项？
 
@@ -361,36 +408,42 @@ ruff check src/
 ### 项目结构
 
 ```
-healpr/
-├── .claude/                    # Claude Code 配置
-│   ├── settings.json           # 钩子配置 + 环境变量
-│   ├── settings.local.json     # 本地权限配置
-│   ├── skills/review.md        # /review 命令定义
-│   ├── hooks/                  # 安全钩子脚本
-│   └── review-rules/           # 审查规则 YAML
-├── src/healpr/                 # 核心代码
-│   ├── server.py               # MCP 服务器主类
-│   ├── config.py               # 配置管理
-│   ├── github/                 # GitHub API 客户端
-│   │   ├── auth.py             # Token 认证
-│   │   └── client.py           # API 请求封装
-│   └── tools/                  # MCP 工具实现
-│       ├── git_tools.py        # git 克隆/清理
-│       ├── lint_tools.py       # linter 运行
-│       ├── test_tools.py       # 测试运行
-│       └── github_tools.py     # GitHub 操作
-├── tests/                      # 单元测试
-├── .mcp.json                   # 项目级 MCP 配置（仅当前项目生效）
-├── pyproject.toml              # Python 项目配置
-└── README.md                   # 本文件
+ai-pr-healer/
+├── .claude/                        # Claude Code 配置
+│   ├── settings.json               # MCP server + hooks 配置
+│   ├── settings.local.json         # 本地权限配置（不提交）
+│   ├── skills/
+│   │   └── pr-review/
+│   │       ├── SKILL.md            # /pr-review 命令定义（审查流程 7 步）
+│   │       ├── security.yaml       # 安全审查规则
+│   │       ├── architecture.yaml   # 架构审查规则
+│   │       └── performance.yaml    # 性能审查规则
+│   └── hooks/
+│       ├── check_bash_safety.py    # Bash 命令安全检查
+│       └── check_file_safety.py    # 文件操作安全检查
+├── src/healpr/                     # 核心代码
+│   ├── server.py                   # MCP 服务器主类（工具注册 + 参数校验）
+│   ├── config.py                   # 配置管理
+│   ├── github/                     # GitHub API 客户端
+│   │   ├── auth.py                 # Token 认证
+│   │   └── client.py               # API 请求封装
+│   └── tools/                      # MCP 工具实现
+│       ├── git_tools.py            # git 克隆/清理
+│       ├── lint_tools.py           # linter 运行
+│       ├── test_tools.py           # 测试运行
+│       └── github_tools.py         # GitHub 操作
+├── tests/                          # 单元测试
+├── .mcp.json                       # 项目级 MCP 配置（仅当前项目生效）
+├── pyproject.toml                  # Python 项目配置
+└── README.md                       # 本文件
 ```
 
 **全局配置文件位置（不在项目目录内）：**
 
 | 文件 | 位置 | 作用 |
 |------|------|------|
-| MCP Server | `~/.claude.json` → `mcpServers` | 用户级 MCP 服务器，所有项目通用 |
-| Hooks + 环境变量 | `~/.claude/settings.json` | 安全钩子、环境变量、插件开关 |
+| MCP Server + Hooks | `~/.claude/settings.json` | MCP server、安全钩子、环境变量 |
+| Skill + 审查规则 | `~/.claude/skills/pr-review/` | `SKILL.md`（命令定义）+ `*.yaml`（审查规则） |
 
 ---
 
