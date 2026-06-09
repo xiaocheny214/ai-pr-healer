@@ -116,10 +116,11 @@ cd ai-pr-healer
 claude
 ```
 
-项目目录下的 `.claude/` 文件夹包含：
-- `settings.json` — MCP 服务器配置 + 安全钩子
-- `skills/pr-review/` — `/pr-review` 命令定义 + 审查规则 YAML
-- `hooks/` — 安全防护脚本
+项目目录下包含：
+- `.mcp.json` — MCP 服务器配置（项目级，自动加载）
+- `.claude/settings.json` — 安全钩子 + 权限配置
+- `.claude/skills/pr-review/` — `/pr-review` 命令定义 + 审查规则 YAML
+- `.claude/hooks/` — 安全防护脚本
 
 这些文件会自动被 Claude Code 加载，无需额外操作。
 
@@ -161,9 +162,11 @@ cp .claude/skills/pr-review/*.yaml ~/.claude/skills/pr-review/
 
 > **Windows 用户注意**：`~` 代表用户主目录，通常是 `C:\Users\你的用户名`。在 PowerShell 中可以用 `$HOME` 代替 `~`。
 
-**2. 在 `~/.claude/settings.json` 中添加 MCP Server 和安全钩子**
+**2. 在 `~/.claude.json` 中添加 MCP Server 配置**
 
-在 `~/.claude/settings.json` 中添加 `mcpServers` 和 `hooks` 配置：
+MCP Server 配置存储在 `~/.claude.json`（用户级），而不是 `.claude/settings.json`。
+
+在 `~/.claude.json` 中添加 `mcpServers`：
 
 ```json
 {
@@ -177,7 +180,28 @@ cp .claude/skills/pr-review/*.yaml ~/.claude/skills/pr-review/
         "HEALPR_WORK_DIR": "/path/to/healpr-workspace"
       }
     }
-  },
+  }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `command` | `python -m healpr.server`，以模块方式启动 MCP server |
+| `cwd` | healpr 项目根目录的**绝对路径**（如 `D:/ai-pr-healer`） |
+| `HEALPR_GITHUB_TOKEN` | 你在第一步创建的 GitHub Token |
+| `HEALPR_WORK_DIR` | 工作目录，用于存放克隆的 PR 代码，建议使用独立目录 |
+
+> **配置文件说明**：
+> - `~/.claude.json` — MCP Server 配置（用户级，所有项目通用）
+> - `.mcp.json` — MCP Server 配置（项目级，仅当前项目生效）
+> - `.claude/settings.json` — 权限、Hooks、环境变量（不含 MCP Server 配置）
+
+**3. 在 `~/.claude/settings.json` 中添加安全钩子**
+
+在 `~/.claude/settings.json` 中添加 `hooks` 配置（此文件不含 MCP Server 配置）：
+
+```json
+{
   "hooks": {
     "PreToolUse": [
       {
@@ -212,16 +236,9 @@ cp .claude/skills/pr-review/*.yaml ~/.claude/skills/pr-review/
 }
 ```
 
-| 字段 | 说明 |
-|------|------|
-| `command` | `python -m healpr.server`，以模块方式启动 MCP server |
-| `cwd` | healpr 项目根目录的**绝对路径**（如 `D:/ai-pr-healer`） |
-| `HEALPR_GITHUB_TOKEN` | 你在第一步创建的 GitHub Token |
-| `HEALPR_WORK_DIR` | 工作目录，用于存放克隆的 PR 代码，建议使用独立目录 |
-
 > **注意**：`PreToolUse` 的首字母必须大写！小写的 `preToolUse` 会导致钩子不生效。
 
-**3. 重启 Claude Code**
+**4. 重启 Claude Code**
 
 配置修改后需要重启 Claude Code 才能生效。
 
@@ -376,7 +393,7 @@ A: 确保 `HEALPR_WORK_DIR` 环境变量已正确设置，且 Claude Code 已重
 A: 检查以下几点：
 1. `pip install -e .` 是否成功执行（全局模式下必须安装）
 2. 项目级：`.mcp.json` 文件是否存在且格式正确
-3. 全局级：`~/.claude/settings.json` 的 `mcpServers` 中是否添加了 `healpr`
+3. 全局级：`~/.claude.json` 的 `mcpServers` 中是否添加了 `healpr`
 4. `HEALPR_GITHUB_TOKEN` 环境变量是否已设置
 5. 尝试重启 Claude Code
 
@@ -421,7 +438,7 @@ ruff check src/
 ```
 ai-pr-healer/
 ├── .claude/                        # Claude Code 配置
-│   ├── settings.json               # MCP server + hooks 配置
+│   ├── settings.json               # hooks + 权限配置
 │   ├── settings.local.json         # 本地权限配置（不提交）
 │   ├── skills/
 │   │   └── pr-review/
@@ -453,7 +470,8 @@ ai-pr-healer/
 
 | 文件 | 位置 | 作用 |
 |------|------|------|
-| MCP Server + Hooks | `~/.claude/settings.json` | MCP server、安全钩子、环境变量 |
+| MCP Server 配置 | `~/.claude.json` | 全局 MCP server 配置（所有项目通用） |
+| Hooks + 权限 | `~/.claude/settings.json` | 安全钩子、权限控制、环境变量 |
 | Skill + 审查规则 | `~/.claude/skills/pr-review/` | `SKILL.md`（命令定义）+ `*.yaml`（审查规则） |
 
 ---
